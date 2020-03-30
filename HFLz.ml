@@ -25,6 +25,7 @@ type hflz =
   | Abs    of var * hflz
   | App    of hflz * hflz
   | Op     of op   * hflz * hflz
+  | Forall of var * hflz
   [@@deriving show]
 
 type rule = { fn : var; args: var list; body : hflz }
@@ -69,7 +70,6 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | Const (Int   i) -> Int i
     | Const (Int32 i) -> Int (Int32.to_int i)
     | Const (Int64 i) -> Int (Int64.to_int i)
-    | Const (Rand (TInt, None)) -> Var (V "Forall")
     | App (App ((App (Const If, x)), y), z) ->
         (* (not x \/ y) /\ (x \/ y) *)
         Op (And, (Op (Or, negate (aux x), aux y))
@@ -88,7 +88,9 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | App (Const Not, x) -> negate (aux x)
     | App (Const (TreeConstr _), x) -> aux x
     | App (Const (Label _), x) -> aux x
+    | App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)
     | App (x,y) -> App (aux x, aux y)
+    | Const (Rand (TInt, None)) -> Var (V "Forall")
     | Fun (f,_,x) -> Abs (mk_var ~toplevel f, aux x)
     | t ->
       Format.printf "%a@.%a@."
@@ -264,6 +266,10 @@ module Print = struct(*{{{*)
         | And -> pr ppf "@[<hv 0>%a@ /\\ %a@]" recur psi1 recur psi2
         | Or  -> pr ppf "@[<hv 0>%a@ \\/ %a@]" recur psi1 recur psi2
         end
+    | Forall(v, t) -> 
+        show_paren (prec > Prec.abs) ppf "@[<1>∀%a.@,%a@]"
+          var v
+          (hflz_ Prec.abs) t
   let hflz : hflz Fmt.t = hflz_ Prec.zero
 
   let rule : rule Fmt.t = fun ppf rule ->
@@ -275,8 +281,7 @@ module Print = struct(*{{{*)
   let hes : hes Fmt.t = fun ppf hes ->
     Fmt.pf ppf "%%HES@.";
     Fmt.pf ppf "@[<v>%a@]@." (Fmt.list rule)  hes;
-    Fmt.pf ppf "Forall p      =v ForallAux p 0.@.";
-    Fmt.pf ppf "ForallAux p x =v p x /\\ ForallAux p (x-1) /\\ ForallAux p (x+1).@."
+    Fmt.pf ppf "Forall p      =v ∀n. p n.@.";
 end(*}}}*)
 
 
