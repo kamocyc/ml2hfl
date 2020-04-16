@@ -234,7 +234,6 @@ let all spec : t list =
     Eliminate_unused_let,
       map_trans @@ elim_unused_let ~leave_last:true;
     Encode_bool_as_int,
-      if_ !Flag.Encode.bool_to_int @@
       map_trans encode_bool_as_int;
     Replace_const,
       if_ !Flag.Method.replace_const @@
