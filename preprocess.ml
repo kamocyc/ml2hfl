@@ -233,8 +233,6 @@ let all spec : t list =
       map_trans mark_fv_as_external;
     Eliminate_unused_let,
       map_trans @@ elim_unused_let ~leave_last:true;
-    Encode_bool_as_int,
-      map_trans encode_bool_as_int;
     Replace_const,
       if_ !Flag.Method.replace_const @@
       map_trans CFA.replace_const;
@@ -345,12 +343,6 @@ let all spec : t list =
     Slice_top_fun,
       if_ !Flag.Method.sub @@
       exists Trans_problem.slice_top_fun;
-    CPS,
-      if_ !Flag.Mode.trans_to_CPS @@
-      singleton CPS.trans;
-    Remove_pair,
-      if_ !Flag.Mode.trans_to_CPS @@
-      singleton Curry.remove_pair;
     Add_occurence_param,
       if_ !Flag.Method.occurence_param @@
       map_trans add_occurence_param;
@@ -368,6 +360,14 @@ let all spec : t list =
     Alpha_rename,
       if_ Flag.Method.(!mode <> Termination) @@
       singleton alpha_rename;
+    Encode_bool_as_int,
+      map_trans encode_bool_as_int;
+    CPS,
+      if_ !Flag.Mode.trans_to_CPS @@
+      singleton CPS.trans;
+    Remove_pair,
+      if_ !Flag.Mode.trans_to_CPS @@
+      singleton Curry.remove_pair;
   ]
 
 let pr () = if !!Debug_ty.check then Problem.print_debug else Problem.print
