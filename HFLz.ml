@@ -85,6 +85,7 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | App ((App (Const Leq, x)), y) -> Op (Leq, aux x, aux y)
     | App ((App (Const Geq, x)), y) -> Op (Geq, aux x, aux y)
     | App ((App (Const EqInt, x)), y) -> Op (Eq, aux x, aux y)
+    | App ((App (Const EqBool, x)), y) -> Op (Eq, aux x, Int 1)
     | App (Const Not, x) -> negate (aux x)
     | App (Const (TreeConstr _), x) -> aux x
     | App (Const (Label _), x) -> aux x
