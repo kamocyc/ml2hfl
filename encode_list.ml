@@ -344,7 +344,7 @@ let trans t =
 
 
 let make_list_eq typ =
-  let f = Id.new_var ~name:"Primitive.list_eq" @@ pureTFun(Id.new_var ~name:"xs" @@ make_tlist typ, pureTFun(Id.new_var ~name:"xs" @@ make_tlist typ, Ty.bool)) in
+  let f = Id.new_var ~name:"PrimitiveList_eq" @@ pureTFun(Id.new_var ~name:"xs" @@ make_tlist typ, pureTFun(Id.new_var ~name:"xs" @@ make_tlist typ, Ty.bool)) in
   let xs = Id.new_var ~name:"xs'" @@ make_tlist typ in
   let ys = Id.new_var ~name:"ys'" @@ make_tlist typ in
   let t_eq =
