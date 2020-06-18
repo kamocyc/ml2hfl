@@ -56,14 +56,17 @@ let rec negate = function
 
 let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
   let rec aux : CEGAR_syntax.t -> hflz = fun t ->
-      (* Format.printf "%a@.%a@." *)
-      (*   CEGAR_syntax.pp t *)
-      (*   CEGAR_print.term t; *)
     match t with
     | Var v -> Var (mk_var ~toplevel v)
     | Let _ -> assert false
     | Const Unit -> Bool true
-    | Const CPS_result -> Bool true
+    | Const CPS_result ->
+      begin
+      match !Flag.Method.mode with
+        | NonTermination -> Bool false
+        | Reachability   -> Bool true
+        | _ -> unsupported "HFLz.of_cegar: mode"
+      end
     | Const Bottom -> Bool true
     | Const True -> Bool true
     | Const False -> Bool false
@@ -88,9 +91,17 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | App (Const Not, x) -> negate (aux x)
     | App (Const (TreeConstr _), x) -> aux x
     | App (Const (Label _), x) -> aux x
-    | App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)
+    (* I do not know why *)
+    (*| App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)*)
     | App (x,y) -> App (aux x, aux y)
-    | Const (Rand (TInt, None)) -> Var (V "Forall")
+    | Const (Rand (TInt, None)) -> 
+      (* I have little time! *)
+      begin
+      match !Flag.Method.mode with
+        | NonTermination -> Var (V "Exists") 
+        | Reachability   -> Var (V "Forall")
+        | _ -> unsupported "HFLz.of_cegar: mode"
+      end
     | Fun (f,_,x) -> Abs (mk_var ~toplevel f, aux x)
     | t ->
       Format.printf "%a@.%a@."
@@ -107,9 +118,12 @@ let rule_of_fun_def ~toplevel : CEGAR_syntax.fun_def -> rule = fun def  ->
     if List.mem (CEGAR_syntax.Event "fail") def.events then
       Bool false
     else
+      ((*Format.printf "%a@." 
+        CEGAR_print.term def.cond; *)
       match negate (hflz_of_cegar ~toplevel def.cond) with
       | Bool false -> hflz_of_cegar ~toplevel def.body
       | p -> Op (Or, p, hflz_of_cegar ~toplevel def.body)
+      )
   in { fn; args; body}
 
 let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as prog) ->
@@ -282,6 +296,9 @@ module Print = struct(*{{{*)
     Fmt.pf ppf "%%HES@.";
     Fmt.pf ppf "@[<v>%a@]@." (Fmt.list rule)  hes;
     Fmt.pf ppf "Forall p      =v ∀n. p n.@.";
+    Fmt.pf ppf "Exists p        =v ExistsAux 1000 0 p.@.";
+    Fmt.pf ppf "ExistsAux x p =v x > 0 /\\ (p x \\/ p (0-x) \\/ ExistsAux (x-1) p).@."
+
 end(*}}}*)
 
 

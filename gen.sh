@@ -4,7 +4,8 @@ set -eu
 
 
 
-BENCHS=`cat "../hfl-benchmark/lists/test_safe_2019"`
+#BENCHS=`cat "../hfl-benchmark/lists/test_safe_2019"`
+BENCHS=`cat "ml_list"`
 for bench in $BENCHS
 do
     echo $bench
