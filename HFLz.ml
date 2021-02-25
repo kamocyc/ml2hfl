@@ -26,6 +26,7 @@ type hflz =
   | App    of hflz * hflz
   | Op     of op   * hflz * hflz
   | Forall of var * hflz
+  | Exists of var * hflz
   [@@deriving show]
 
 type rule = { fn : var; args: var list; body : hflz }
@@ -64,7 +65,7 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
       begin
       match !Flag.Method.mode with
         | NonTermination -> Bool false
-        | Reachability   -> Bool true
+        (* | Reachability   -> Bool true *)
         | _ -> unsupported "HFLz.of_cegar: mode"
       end
     | Const Bottom -> Bool true
@@ -92,16 +93,22 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | App (Const (TreeConstr _), x) -> aux x
     | App (Const (Label _), x) -> aux x
     (* I do not know why *)
-    (*| App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)*)
+    | App(Const (Rand(TInt, None)), Fun(f, _, t)) -> begin
+      match !Flag.Method.mode with
+      | NonTermination -> Exists(mk_var ~toplevel f, aux t)
+      (* | Reachability -> Forall(mk_var ~toplevel f, aux t) *)
+      | _ -> unsupported "HFLz.of_cegar: mode"
+    end
+    | App(Const (Rand _), _) -> failwith "hflz_of_cegar"
     | App (x,y) -> App (aux x, aux y)
-    | Const (Rand (TInt, None)) -> 
+    (* | Const (Rand (TInt, None)) -> 
       (* I have little time! *)
       begin
       match !Flag.Method.mode with
         | NonTermination -> Var (V "Exists") 
         | Reachability   -> Var (V "Forall")
         | _ -> unsupported "HFLz.of_cegar: mode"
-      end
+      end *)
     | Fun (f,_,x) -> Abs (mk_var ~toplevel f, aux x)
     | t ->
       Format.printf "%a@.%a@."
@@ -284,6 +291,11 @@ module Print = struct(*{{{*)
         show_paren (prec > Prec.abs) ppf "@[<1>∀%a.@,%a@]"
           var v
           (hflz_ Prec.abs) t
+    | Exists(v, t) -> 
+        show_paren (prec > Prec.abs) ppf "@[<1>∃%a.@,%a@]"
+          var v
+          (hflz_ Prec.abs) t
+        
   let hflz : hflz Fmt.t = hflz_ Prec.zero
 
   let rule : rule Fmt.t = fun ppf rule ->
@@ -295,9 +307,9 @@ module Print = struct(*{{{*)
   let hes : hes Fmt.t = fun ppf hes ->
     Fmt.pf ppf "%%HES@.";
     Fmt.pf ppf "@[<v>%a@]@." (Fmt.list rule)  hes;
-    Fmt.pf ppf "Forall p      =v ∀n. p n.@.";
+    (* Fmt.pf ppf "Forall p      =v ∀n. p n.@.";
     Fmt.pf ppf "Exists p        =v ExistsAux 1000 0 p.@.";
-    Fmt.pf ppf "ExistsAux x p =v x > 0 /\\ (p x \\/ p (0-x) \\/ ExistsAux (x-1) p).@."
+    Fmt.pf ppf "ExistsAux x p =v x > 0 /\\ (p x \\/ p (0-x) \\/ ExistsAux (x-1) p).@." *)
 
 end(*}}}*)
 

@@ -34,6 +34,9 @@ let main filenames =
 
 let () =
   Cmd.parse_arg ();
+  (match !Flag.Method.mode with
+  | NonTermination -> ()
+  | _ -> failwith "-non-termination flag is necessary (this program is only for non-termination).");
   save_input_to_file !Flag.Input.filenames;
   main !Flag.Input.filenames
 
