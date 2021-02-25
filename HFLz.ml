@@ -116,7 +116,7 @@ let rule_of_fun_def ~toplevel : CEGAR_syntax.fun_def -> rule = fun def  ->
   let args = List.map (mk_var ~toplevel) def.args in
   let body =
     if List.mem (CEGAR_syntax.Event "fail") def.events then
-      Bool false
+      Bool true
     else
       ((*Format.printf "%a@." 
         CEGAR_print.term def.cond; *)

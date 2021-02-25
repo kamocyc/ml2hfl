@@ -95,7 +95,8 @@ and pat_desc =
   | PSome of pattern
   | POr of pattern * pattern
   | PWhen of pattern * term
-
+  [@@deriving show]
+  
 type env = (id * typ) list
 
 module ID : sig
