@@ -73,6 +73,8 @@ fpat/META
 gmon.out
 *.oc
 *.oc_out
+_build
+.merlin
 
 # Backup files
 *~
