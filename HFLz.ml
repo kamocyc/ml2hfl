@@ -122,7 +122,12 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz = fun t ->
     (*| App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)*)
     | App(Const (Rand(TInt, None)), Fun(f, _, t)) -> begin
       match !Flag.Method.mode with
-      | NonTermination -> Exists(mk_var ~toplevel f, aux t)
+      | NonTermination -> begin
+        if String.length f >= 7 && String.sub f 0 7 = "dummy__" then
+          Bool false
+        else
+          Exists(mk_var ~toplevel f, aux t)
+      end
       (* | Reachability -> Forall(mk_var ~toplevel f, aux t) *)
       | _ -> unsupported "HFLz.of_cegar: mode"
     end
