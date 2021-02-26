@@ -26,7 +26,7 @@ let save_input_to_file filenames =
         |> List.map copy_input_file
         |> Ref.set Flag.Input.filenames
 
-let trans1 (prog : Syntax.term) =
+let translate (prog : Syntax.term) =
   print_endline "trans1 (before)";
   print_endline @@ Syntax.show_term prog;
   let tr = Syntax.make_trans () in
@@ -94,11 +94,11 @@ let trans1 (prog : Syntax.term) =
         match descs with
         | { Syntax.desc = Local (decl, descs) } -> { descs with desc = Local (tr.tr_decl decl, go descs) }
         | { Syntax.desc = End_of_definitions } -> descs
-        | _ -> failwith "b"
+        | _ -> failwith "prog1"
       in
       { descs with Syntax.desc = Local (decl, go descs) }
     end
-    | _ -> failwith "a"
+    | _ -> failwith "prog2"
   in
   print_endline "trans1 (after)";
   Format.printf "%a\n" Print.term' prog;
@@ -116,7 +116,8 @@ let read_file filename =
     close_in chan;
     List.rev !lines
 
-let substitute_adhoc filenames (typ : [`Unit | `Int]) =
+(* ad-hoc *)
+let substitute_main filenames (typ : [`Unit | `Int]) =
   match filenames with
   | [filename] -> begin
     let content = read_file filename |> String.concat "\n" in
@@ -131,22 +132,24 @@ let substitute_adhoc filenames (typ : [`Unit | `Int]) =
     print_endline file;
     file
   end
-  | _ -> failwith "substitute_adhoc"
+  | _ -> failwith "substitute_main"
 
 let main filenames =
-  (* let re = Str.regexp "\\(FAIL_[0-9]+\\( \\|\t\\|\r\\|\n\\|[a-z]\\|[A-Z]\\|_\\|[0-9]\\)+\\)=v\\( \\|\t\\|\r\\|\n\\)false\\." in
-   Str.replace_first re "\\1=v true." "FAIL_498 u_499 k_500 =v false." in *)
+  let original_filename = match filenames with [filename] -> filename | _ -> failwith "main" in
+  (* try unit *)
+  let filename = substitute_main !Flag.Input.filenames `Unit in
   (* origにはdirectiveと型定義が入っている．今回は無視してよい *)
-  let filename = substitute_adhoc !Flag.Input.filenames `Unit in
   let _, parsed =
     try
       Parser_wrapper.parse_files [filename]
     with _ ->
-      let filename = substitute_adhoc !Flag.Input.filenames `Int in
+      (* ad-hoc *)
+      (* try int *)
+      let filename = substitute_main !Flag.Input.filenames `Int in
       Parser_wrapper.parse_files [filename] in
-  let parsed = trans1 parsed in
+  let parsed = translate parsed in
   let problem = Problem.safety parsed in
-  Main_loop.run Spec.init problem
+  Main_loop.run Spec.init problem original_filename
 
 let () =
   Cmd.parse_arg ();
