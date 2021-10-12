@@ -166,6 +166,27 @@ let rule_of_fun_def ~toplevel : CEGAR_syntax.fun_def -> rule option = fun def  -
       in
     Some { fn; args; body}
 
+let rec get_occuring_variables (phi : hflz) =
+  let rec go phi = match phi with
+    | Bool _ -> []
+    | Int n -> []
+    | Var v -> [v]
+    | App (psi1, psi2) -> (go psi1) @ (go psi2)
+    | Abs (x, psi) -> List.filter (fun v -> v <> x) (go psi)
+    | Op (op, psi1, psi2) -> (go psi1) @ (go psi2)
+    | Forall(v, t) -> List.filter (fun v' -> v' <> v) (go t)
+    | Exists(v, t) -> List.filter (fun v' -> v' <> v) (go t) in
+  go phi
+
+let remove_first_exists phi =
+  match phi with
+  | Exists (v, psi) -> begin
+    match List.find_opt ((=)v) (get_occuring_variables psi) with
+    | None -> psi
+    | Some _ -> phi
+  end
+  | _ -> phi
+
 let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as prog) ->
   (* Format.eprintf "%a" CEGAR_print.prog prog; *)
   let toplevel = List.map (fun x -> x.CEGAR_syntax.fn) defs in
@@ -197,6 +218,7 @@ let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as p
     in
     let main =
       let body, args = remove_forall main.body in
+      let body = remove_first_exists body in
       (* { main' with args; body } *) (* 鈴木さんのはこっちに非対応 *)
       { main with body }
     in
