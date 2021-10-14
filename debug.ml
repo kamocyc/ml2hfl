@@ -14,7 +14,7 @@ module type DEBUG = sig
 end
 
 module Make (Cond : COND) : DEBUG = struct
-  let check = Cond.check
+  let check = fun () -> true
   let fprintf fm f = if check() then Format.fprintf fm f else Format.ifprintf fm f
   let printf f = fprintf Format.std_formatter f
   let eprintf f = fprintf Format.err_formatter f

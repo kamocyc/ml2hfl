@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euxo pipefail
+
+if [ "$#" -ne 2 ]; then
+  >&2 echo "ERROR: illegal number of parameters. please specify source and target directory"
+  exit 1
+fi
+
+SOURCE=$1
+TARGET=$2
+
+for FILE in "$SOURCE"/*.ml
+do
+  FILE_WITH_IN="$SOURCE"/"$(basename -s .ml "$FILE")".in
+  if [ -f "$FILE_WITH_IN" ]; then
+    >&2 echo ERROR: a file \""$FILE_WITH_IN"\" already exists
+    exit 1
+  fi
+  
+  FILE_WITH_IN_TARGET="$TARGET"/"$(basename "$FILE_WITH_IN")"
+  if [ -f "$FILE_WITH_IN_TARGET" ]; then
+    >&2 echo ERROR: In the target directory, a file \""$FILE_WITH_IN_TARGET"\" already exists
+    exit 1
+  fi
+  
+  ./x "$FILE" > /dev/null
+  mv -n "$FILE_WITH_IN" "$FILE_WITH_IN_TARGET"
+done

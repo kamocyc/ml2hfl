@@ -76,7 +76,7 @@ let check ?fun_list ?(exparam_sol=[]) spec pp =
     let cegar_prog = preprocessed in
     cegar_prog
 
-let rec run ?make_pps ?fun_list ?exparam_sol spec problem =
+let rec run ?make_pps ?fun_list ?exparam_sol spec problem original_filename =
   let preprocessed = run_preprocess ?make_pps spec problem in
   let is_singleton = Exception.not_raise Preprocess.get preprocessed in
   if not is_singleton then unsupported "multiple goal";
@@ -105,6 +105,17 @@ let rec run ?make_pps ?fun_list ?exparam_sol spec problem =
   let cegar_prog = { cegar_prog with info } in
   let cegar_prog = CEGAR_abst_CPS.expand_non_rec cegar_prog in
   let hes = HFLz.hes_of_prog cegar_prog in
-  Format.printf "%a" HFLz.Print.hes hes
+  
+  (* save *)
+  let filename = Filename.remove_extension original_filename ^ ".in" in
+  let oc = open_out filename in
+  let fmt = Format.formatter_of_out_channel oc in
+  Format.fprintf fmt "%a" HFLz.Print.hes hes;
+  Format.pp_print_flush fmt ();
+  close_out oc;
+    
+  Format.printf "%a" HFLz.Print.hes hes;
+  print_endline @@ "saved: " ^ filename
+  
 
 (* TODO CEGAR_syntax.prog -> HFL -> string *)

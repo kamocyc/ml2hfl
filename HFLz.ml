@@ -55,7 +55,30 @@ let rec negate = function
       Format.eprintf "Cannot negate %a@." pp_hflz t;
       assert false
 
-let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
+let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz = fun t ->
+  Format.printf "hflz_of_cegar\n%a@.%a@."
+    CEGAR_syntax.pp t
+    CEGAR_print.term t;
+  let rec contains_f (t : CEGAR_syntax.t) f =
+    Format.printf "contains_f\n%a@.%a@."
+      CEGAR_syntax.pp t
+      CEGAR_print.term t;
+    match t with
+    | App (Const (Label _), b) -> contains_f b f
+    | App (a, _) -> contains_f a f
+    | a when f a -> true
+    | _ -> false
+  in
+  let contains_fail t =
+    contains_f t (fun t ->
+      match t with
+      | Var name when String.length name >= 5 && String.sub name 0 5 = "fail_" -> true
+      | _ -> false) in
+  let contains_cps_result t =
+    contains_f t (fun t ->
+      match t with
+      | Const CPS_result -> true
+      | _ -> false) in
   let rec aux : CEGAR_syntax.t -> hflz = fun t ->
     match t with
     | Var v -> Var (mk_var ~toplevel v)
@@ -64,10 +87,13 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | Const CPS_result ->
       begin
       match !Flag.Method.mode with
-        | NonTermination -> Bool false
-        (* | Reachability   -> Bool true *)
+        | NonTermination -> Var (V "Bool_false")
+        | Reachability   -> Bool true
         | _ -> unsupported "HFLz.of_cegar: mode"
       end
+    | App (App (App (Const If, x), y), z) when contains_cps_result y && contains_fail z -> begin
+      Bool false
+    end
     | Const Bottom -> Bool true
     | Const True -> Bool true
     | Const False -> Bool false
@@ -93,9 +119,15 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
     | App (Const (TreeConstr _), x) -> aux x
     | App (Const (Label _), x) -> aux x
     (* I do not know why *)
+    (*| App(Const (Rand(_, None)), Fun(f, _, t)) -> Forall(mk_var ~toplevel f, aux t)*)
     | App(Const (Rand(TInt, None)), Fun(f, _, t)) -> begin
       match !Flag.Method.mode with
-      | NonTermination -> Exists(mk_var ~toplevel f, aux t)
+      | NonTermination -> begin
+        if String.length f >= 7 && String.sub f 0 7 = "dummy__" then
+          Bool false
+        else
+          Exists(mk_var ~toplevel f, aux t)
+      end
       (* | Reachability -> Forall(mk_var ~toplevel f, aux t) *)
       | _ -> unsupported "HFLz.of_cegar: mode"
     end
@@ -115,23 +147,45 @@ let rec hflz_of_cegar ~toplevel : CEGAR_syntax.t -> hflz =
         CEGAR_syntax.pp t
         CEGAR_print.term t;
       assert false
-  in aux
+  in aux t
 
 (* fun_def list は同じものが複数入っている *)
-let rule_of_fun_def ~toplevel : CEGAR_syntax.fun_def -> rule = fun def  ->
+let rule_of_fun_def ~toplevel : CEGAR_syntax.fun_def -> rule option = fun def  ->
   let fn = mk_var ~toplevel def.fn in
   let args = List.map (mk_var ~toplevel) def.args in
-  let body =
-    if List.mem (CEGAR_syntax.Event "fail") def.events then
-      Bool false
-    else
+  if List.mem (CEGAR_syntax.Event "fail") def.events then
+    None
+  else
+    let body = 
       ((*Format.printf "%a@." 
         CEGAR_print.term def.cond; *)
       match negate (hflz_of_cegar ~toplevel def.cond) with
       | Bool false -> hflz_of_cegar ~toplevel def.body
       | p -> Op (Or, p, hflz_of_cegar ~toplevel def.body)
       )
-  in { fn; args; body}
+      in
+    Some { fn; args; body}
+
+let rec get_occuring_variables (phi : hflz) =
+  let rec go phi = match phi with
+    | Bool _ -> []
+    | Int n -> []
+    | Var v -> [v]
+    | App (psi1, psi2) -> (go psi1) @ (go psi2)
+    | Abs (x, psi) -> List.filter (fun v -> v <> x) (go psi)
+    | Op (op, psi1, psi2) -> (go psi1) @ (go psi2)
+    | Forall(v, t) -> List.filter (fun v' -> v' <> v) (go t)
+    | Exists(v, t) -> List.filter (fun v' -> v' <> v) (go t) in
+  go phi
+
+let remove_first_exists phi =
+  match phi with
+  | Exists (v, psi) -> begin
+    match List.find_opt ((=)v) (get_occuring_variables psi) with
+    | None -> psi
+    | Some _ -> phi
+  end
+  | _ -> phi
 
 let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as prog) ->
   (* Format.eprintf "%a" CEGAR_print.prog prog; *)
@@ -146,7 +200,7 @@ let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as p
       { rule1 with body }
     in
     defs
-    |> List.map (rule_of_fun_def ~toplevel)
+    |> List.filter_map (rule_of_fun_def ~toplevel)
     |> List.sort (fun x y -> compare x.fn y.fn)
     |> List.group_consecutive (fun x y -> x.fn = y.fn)
     |> List.map (fold_left1 merge)
@@ -164,6 +218,7 @@ let hes_of_prog : CEGAR_syntax.prog -> hes = fun ({defs; main=orig_main; _} as p
     in
     let main =
       let body, args = remove_forall main.body in
+      let body = remove_first_exists body in
       (* { main' with args; body } *) (* 鈴木さんのはこっちに非対応 *)
       { main with body }
     in
@@ -252,8 +307,13 @@ module Print = struct(*{{{*)
       if b
       then Fmt.pf ppf ("(" ^^ fmt ^^ ")")
       else Fmt.pf ppf fmt
-
-  let var ppf (V x) = Fmt.string ppf x
+  
+  let convert_var s =
+    if String.length s >= 5 && String.sub s 0 5 = "MAIN_" then
+      "Sentry"
+    else s
+  
+  let var ppf (V x) = Fmt.string ppf (convert_var x)
   let rec hflz_ prec ppf (phi : hflz) = match phi with
     | Bool true -> Fmt.string ppf "true"
     | Bool false -> Fmt.string ppf "false"
@@ -295,7 +355,6 @@ module Print = struct(*{{{*)
         show_paren (prec > Prec.abs) ppf "@[<1>∃%a.@,%a@]"
           var v
           (hflz_ Prec.abs) t
-        
   let hflz : hflz Fmt.t = hflz_ Prec.zero
 
   let rule : rule Fmt.t = fun ppf rule ->
